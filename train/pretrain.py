@@ -287,7 +287,10 @@ if __name__ == "__main__":
     Logger(f'Starting training: {args.epochs} epochs, batch_size={args.batch_size}')
     for epoch in range(start_epoch, args.epochs):
         train_sampler and train_sampler.set_epoch(epoch)  # [DDP] 多卡时打乱各卡分片；without_ddp 无此行
-        indices = torch.randperm(len(train_ds)).tolist()
+        # 用 epoch 固定种子，保证续训时同一 epoch 的打乱顺序与初次训练完全一致
+        g = torch.Generator()
+        g.manual_seed(epoch)
+        indices = torch.randperm(len(train_ds), generator=g).tolist()
         skip = start_step if (epoch == start_epoch and start_step > 0) else 0
         # [DDP] 多卡用 train_sampler，单卡用 indices；without_ddp 仅 SkipBatchSampler(indices, ...)
         batch_sampler = SkipBatchSampler(train_sampler or indices, args.batch_size, skip)
