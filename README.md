@@ -1,3 +1,4 @@
+```markdown
 # 🚀 LLM-From-Scratch-0.1B
 
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)
@@ -175,5 +176,7 @@ python train_sft.py \
 本项目在架构设计和工程实现上参考了 [LLaMA](https://github.com/facebookresearch/llama)、[Qwen](https://github.com/QwenLM/Qwen) 等卓越的开源工作，深深感谢开源社区的力量。
 
 本项目采用 **MIT License**，你可以自由地将其用于学习、修改或二次开发。
+
+```
 
 ```
