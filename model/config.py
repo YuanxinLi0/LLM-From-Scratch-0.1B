@@ -1,9 +1,9 @@
 from transformers import PretrainedConfig
 
 
-class SpongeBobConfig(PretrainedConfig):
+class LLMFromScratchConfig(PretrainedConfig):
     """
-    SpongeBob 模型配置类
+    LLM-From-Scratch-0.1B 模型配置类
     
     参数说明：
         hidden_size: 隐藏层维度
@@ -21,7 +21,7 @@ class SpongeBobConfig(PretrainedConfig):
         eos_token_id: 结束 token ID
         flash_attn: 是否启用 Flash Attention
     """
-    model_type = "spongebob"
+    model_type = "llm-from-scratch-0.1b"
 
     def __init__(
             self,

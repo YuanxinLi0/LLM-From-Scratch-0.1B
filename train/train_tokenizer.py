@@ -1,5 +1,5 @@
-"""
-训练15k BPE tokenizer (中英文双语)
+﻿"""
+璁粌15k BPE tokenizer (涓嫳鏂囧弻璇?
 """
 import os
 import json
@@ -7,17 +7,18 @@ import time
 from datetime import datetime
 from tokenizers import decoders, models, pre_tokenizers, trainers, Tokenizer
 
-# 设置线程数
+# 璁剧疆绾跨▼鏁?
 NUM_THREADS = 300
 os.environ['RAYON_NUM_THREADS'] = str(NUM_THREADS)
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 
-# 配置
-DATA_PATH = '/apdcephfs_qy4/share_302593112/huaibingxie/SpongeBob/data/pretrain_data/merged_pretrain_data_zh_en_only_v2.jsonl'
-TOKENIZER_DIR = '/apdcephfs_qy4/share_302593112/huaibingxie/SpongeBob/tokenizer_15k/'
+# 路径配置
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'pretrain_data', 'merged_pretrain_data_zh_en_only_v2.jsonl')
+TOKENIZER_DIR = os.path.join(PROJECT_ROOT, 'tokenizer_15k')
 VOCAB_SIZE = 15000
 
-# 特殊tokens（15个）
+# 鐗规畩tokens锛?5涓級
 SPECIAL_TOKENS = [
     "<|endoftext|>",   # 0
     "<|im_start|>",    # 1
@@ -37,7 +38,7 @@ SPECIAL_TOKENS = [
 ]
 
 def get_texts(data_path, max_lines=None):
-    """读取训练数据"""
+    """璇诲彇璁粌鏁版嵁"""
     with open(data_path, 'r', encoding='utf-8') as f:
         for i, line in enumerate(f):
             if max_lines and i >= max_lines:
@@ -51,49 +52,49 @@ def get_texts(data_path, max_lines=None):
                 continue
 
 def train_tokenizer(data_path, tokenizer_dir, vocab_size, special_tokens, max_lines=None):
-    """训练tokenizer"""
+    """璁粌tokenizer"""
     start_time = time.time()
     start_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    print(f"\n开始时间: {start_datetime}")
-    print(f"训练配置:")
-    print(f"  数据: {data_path}")
-    print(f"  词表: {vocab_size} (BPE: {vocab_size - len(special_tokens)}, 特殊: {len(special_tokens)})")
-    print(f"  模式: {'测试' if max_lines else '全量'}")
-    print(f"  线程: {NUM_THREADS} (总核心: {os.cpu_count()})\n")
+    print(f"\n寮€濮嬫椂闂? {start_datetime}")
+    print(f"璁粌閰嶇疆:")
+    print(f"  鏁版嵁: {data_path}")
+    print(f"  璇嶈〃: {vocab_size} (BPE: {vocab_size - len(special_tokens)}, 鐗规畩: {len(special_tokens)})")
+    print(f"  妯″紡: {'娴嬭瘯' if max_lines else '鍏ㄩ噺'}")
+    print(f"  绾跨▼: {NUM_THREADS} (鎬绘牳蹇? {os.cpu_count()})\n")
     
-    # 初始化
+    # 鍒濆鍖?
     tokenizer = Tokenizer(models.BPE())
     tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
     
-    # 训练
+    # 璁粌
     trainer = trainers.BpeTrainer(
         vocab_size=vocab_size,
         special_tokens=special_tokens,
-        show_progress=True,  # 终端会显示，重定向时无效
+        show_progress=True,  # 缁堢浼氭樉绀猴紝閲嶅畾鍚戞椂鏃犳晥
         initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
         min_frequency=2,
         limit_alphabet=6000,
         continuing_subword_prefix="",
     )
     
-    print("开始训练...")
-    print("(注意: 训练过程较长，日志输出可能延迟，请耐心等待...)")
+    print("寮€濮嬭缁?..")
+    print("(娉ㄦ剰: 璁粌杩囩▼杈冮暱锛屾棩蹇楄緭鍑哄彲鑳藉欢杩燂紝璇疯€愬績绛夊緟...)")
     texts = get_texts(data_path, max_lines=max_lines)
     tokenizer.train_from_iterator(texts, trainer=trainer)
     tokenizer.decoder = decoders.ByteLevel()
-    print("训练阶段完成，开始保存...")
+    print("璁粌闃舵瀹屾垚锛屽紑濮嬩繚瀛?..")
     
-    # 验证特殊tokens
+    # 楠岃瘉鐗规畩tokens
     for i, token in enumerate(special_tokens[:5]):
-        assert tokenizer.token_to_id(token) == i, f"{token} ID错误"
+        assert tokenizer.token_to_id(token) == i, f"{token} ID閿欒"
     
-    # 保存
+    # 淇濆瓨
     os.makedirs(tokenizer_dir, exist_ok=True)
     tokenizer.save(os.path.join(tokenizer_dir, "tokenizer.json"))
     tokenizer.model.save(tokenizer_dir)
     
-    # 配置文件
+    # 閰嶇疆鏂囦欢
     added_tokens_decoder = {
         str(i): {
             "content": token,
@@ -124,7 +125,7 @@ def train_tokenizer(data_path, tokenizer_dir, vocab_size, special_tokens, max_li
     with open(os.path.join(tokenizer_dir, "tokenizer_config.json"), "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
     
-    # 计算训练时间
+    # 璁＄畻璁粌鏃堕棿
     end_time = time.time()
     end_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     elapsed_time = end_time - start_time
@@ -132,54 +133,56 @@ def train_tokenizer(data_path, tokenizer_dir, vocab_size, special_tokens, max_li
     minutes = int((elapsed_time % 3600) // 60)
     seconds = int(elapsed_time % 60)
     
-    print(f"\n训练完成! 保存到: {tokenizer_dir}")
-    print(f"实际词表大小: {len(tokenizer.get_vocab())}")
-    print(f"结束时间: {end_datetime}")
-    print(f"总耗时: {hours}小时 {minutes}分钟 {seconds}秒 ({elapsed_time:.1f}秒)\n")
+    print(f"\n璁粌瀹屾垚! 淇濆瓨鍒? {tokenizer_dir}")
+    print(f"瀹為檯璇嶈〃澶у皬: {len(tokenizer.get_vocab())}")
+    print(f"缁撴潫鏃堕棿: {end_datetime}")
+    print(f"鎬昏€楁椂: {hours}灏忔椂 {minutes}鍒嗛挓 {seconds}绉?({elapsed_time:.1f}绉?\n")
 
 def eval_tokenizer(tokenizer_dir):
-    """测试tokenizer"""
+    """娴嬭瘯tokenizer"""
     from transformers import AutoTokenizer
     
-    print("测试tokenizer...")
+    print("娴嬭瘯tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
     
-    # 基础测试
-    test_text = "Hello World! 你好世界！This is a test. 这是测试。"
+    # 鍩虹娴嬭瘯
+    test_text = "Hello World! 浣犲ソ涓栫晫锛乀his is a test. 杩欐槸娴嬭瘯銆?
     tokens = tokenizer.encode(test_text)
     decoded = tokenizer.decode(tokens)
     
-    print(f"  词表大小: {len(tokenizer)}")
-    print(f"  测试文本: {test_text}")
-    print(f"  Token数量: {len(tokens)}")
-    print(f"  解码一致: {'✓' if decoded == test_text else '✗'}")
+    print(f"  璇嶈〃澶у皬: {len(tokenizer)}")
+    print(f"  娴嬭瘯鏂囨湰: {test_text}")
+    print(f"  Token鏁伴噺: {len(tokens)}")
+    print(f"  瑙ｇ爜涓€鑷? {'鉁? if decoded == test_text else '鉁?}")
     
-    # 对话测试
+    # 瀵硅瘽娴嬭瘯
     messages = [
-        {"role": "system", "content": "You are helpful. 你很有帮助。"},
-        {"role": "user", "content": "Hi! 你好！"},
-        {"role": "assistant", "content": "Hello! 你好！"}
+        {"role": "system", "content": "You are helpful. 浣犲緢鏈夊府鍔┿€?},
+        {"role": "user", "content": "Hi! 浣犲ソ锛?},
+        {"role": "assistant", "content": "Hello! 浣犲ソ锛?}
     ]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False)
-    print(f"\n对话模板:\n{prompt}")
+    print(f"\n瀵硅瘽妯℃澘:\n{prompt}")
 
 if __name__ == '__main__':
     import sys
     
     total_start = time.time()
     
-    # --test 参数使用测试模式（前10000行）
+    # --test 鍙傛暟浣跨敤娴嬭瘯妯″紡锛堝墠10000琛岋級
     test_mode = '--test' in sys.argv
     max_lines = 10000 if test_mode else None
     
-    # 训练
+    # 璁粌
     # train_tokenizer(DATA_PATH, TOKENIZER_DIR, VOCAB_SIZE, SPECIAL_TOKENS, max_lines)
     
-    # 测试
+    # 娴嬭瘯
     eval_tokenizer(TOKENIZER_DIR)
     
-    # 总时间统计
+    # 鎬绘椂闂寸粺璁?
     total_elapsed = time.time() - total_start
     print(f"\n{'='*50}")
-    print(f"总运行时间: {total_elapsed/60:.1f} 分钟 ({total_elapsed:.1f} 秒)")
+    print(f"鎬昏繍琛屾椂闂? {total_elapsed/60:.1f} 鍒嗛挓 ({total_elapsed:.1f} 绉?")
     print(f"{'='*50}\n")
+
+

@@ -1,7 +1,7 @@
 """
-SpongeBob 预训练脚本（支持多卡 DDP）
-与 pretrain_without_ddp.py 的差异已用 [DDP] 标出：主要为分布式初始化、Sampler、DDP 包模型、
-主进程判断（保存/评测）、总步数按 world_size 分片、训练循环用 train_sampler、结束时 destroy_process_group。
+LLM-From-Scratch-0.1B 预训练脚本（支持多卡 DDP）
+与 pretrain_without_ddp.py 的差异已用 [DDP] 标出：主要为分布式初始化、Sampler、DDP 包模型等。
+主进程判断（保存/测评）、总步数按 world_size 分片、训练循环用 train_sampler、结束时 destroy_process_group。
 """
 import os
 import sys
@@ -16,15 +16,15 @@ import argparse
 import time
 import warnings
 import torch
-import torch.distributed as dist  # [DDP] 多进程/多 GPU 通信；without_ddp 无此 import
+import torch.distributed as dist  # [DDP] 多进程多 GPU 通信；without_ddp 无此 import
 from contextlib import nullcontext
 from torch import optim, nn
 from torch.nn.parallel import DistributedDataParallel  # [DDP] DDP 包模型；without_ddp 无
-from torch.utils.data import DataLoader, DistributedSampler  # [DDP] 多卡用 DistributedSampler；without_ddp 仅 DataLoader
-from model.config import SpongeBobConfig
-from model.model_spongebob_pro import SpongeBobForCausalLM
+from torch.utils.data import DataLoader, DistributedSampler  # [DDP] 多卡用 DistributedSampler；without_ddp 从 DataLoader
+from model.config import LLMFromScratchConfig
+from model.model_llm_from_scratch import LLMFromScratchForCausalLM
 from dataset.pretrain_dataset import PretrainDataset
-from utils import get_lr, Logger, is_main_process, init_distributed_mode, SkipBatchSampler  # [DDP] is_main_process/init_distributed_mode 仅 DDP 用；without_ddp 无
+from utils import get_lr, Logger, is_main_process, init_distributed_mode, SkipBatchSampler  # [DDP] is_main_process/init_distributed_mode 从 DDP 用；without_ddp 无
 from benchmark.pretrain.evaluator import run_benchmark
 
 _BENCH_PRETRAIN_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "benchmark", "pretrain")
@@ -95,7 +95,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
             model.eval()
             ckp_dir = f'{full_save_dir}/global_step_{global_step}'
             os.makedirs(ckp_dir, exist_ok=True)
-            # [DDP] DDP 下取 .module 才是真实模型；without_ddp 仅 getattr(model, '_orig_mod', model)
+            # [DDP] DDP 下取 .module 才是真实模型；without_ddp 从 getattr(model, '_orig_mod', model)
             raw_model = model.module if isinstance(model, DistributedDataParallel) else model
             raw_model = getattr(raw_model, '_orig_mod', raw_model)
             state_dict = {k: v.half().cpu() for k, v in raw_model.state_dict().items()}
@@ -114,7 +114,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
             Logger(f'Saved checkpoint: {ckp_dir}')
             model.train()
         
-        # Benchmark 评测 [DDP] 仅主进程跑；without_ddp 无 is_main_process() 判断
+        # Benchmark 测评 [DDP] 仅主进程跑；without_ddp 无 is_main_process() 判断
         if args.eval_bench == 1 and tokenizer is not None and global_step % args.eval_interval == 0 and is_main_process():
             model.eval()
             c3_path = os.path.join(_BENCH_PRETRAIN_DIR, "clue_c3_eval_500.jsonl")
@@ -129,7 +129,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SpongeBob Pretraining")
+    parser = argparse.ArgumentParser(description="LLM-From-Scratch-0.1B Pretraining")
     parser.add_argument("--save_dir", type=str, default="../pretrain_out/exp_mini", help="模型保存根目录")
     parser.add_argument('--save_weight', default='pretrain', type=str, help="保存权重的前缀名")
     parser.add_argument("--epochs", type=int, default=2, help="训练轮数")
@@ -145,14 +145,14 @@ if __name__ == "__main__":
     parser.add_argument('--hidden_size', default=768, type=int, help="隐藏层维度")
     parser.add_argument('--num_hidden_layers', default=12, type=int, help="隐藏层数量")
     parser.add_argument('--max_seq_len', default=512, type=int, help="序列长度")
-    parser.add_argument("--data_path", type=str, default="", help="预处理后的.bin文件路径")
-    parser.add_argument('--from_weight', default='none', type=str, help="基于哪个权重训练，为none则从头开始")
-    parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
-    parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用swanlab（0=否，1=是）")
-    parser.add_argument("--swanlab_project", type=str, default="SpongeBob-Pretrain", help="swanlab项目名")
-    parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用torch.compile加速（0=否，1=是）")
-    parser.add_argument("--eval_bench", default=1, type=int, choices=[0, 1], help="是否评测benchmark（0=否，1=是）")
-    parser.add_argument("--eval_interval", type=int, default=1000, help="评测间隔步数")
+    parser.add_argument("--data_path", type=str, default="", help="预处理后的 bin 文件路径")
+    parser.add_argument('--from_weight', default='none', type=str, help="基于哪个权重训练，为 none 则从头开始")
+    parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测续训（0=否，1=是）")
+    parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用 swanlab（0=否，1=是）")
+    parser.add_argument("--swanlab_project", type=str, default="LLM-From-Scratch-0.1B-Pretrain", help="swanlab 项目名")
+    parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用 torch.compile 加速（0=否，1=是）")
+    parser.add_argument("--eval_bench", default=1, type=int, choices=[0, 1], help="是否测评 benchmark（0=否，1=是）")
+    parser.add_argument("--eval_interval", type=int, default=1000, help="测评间隔步数")
     args = parser.parse_args()
 
     # ========== 1. [DDP] 初始化分布式环境 ==========
@@ -160,8 +160,8 @@ if __name__ == "__main__":
     local_rank = init_distributed_mode()  # 多卡时初始化进程组并返回本卡 GPU 号
     if dist.is_initialized(): args.device = f"cuda:{local_rank}"  # DDP 时每进程用不同 GPU
 
-    # ========== 2. 配置目录、模型参数、检查ckp ==========
-    lm_config = SpongeBobConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers)
+    # ========== 2. 配置目录、模型参数、检查 ckp ==========
+    lm_config = LLMFromScratchConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers)
     
     # 生成 run_name（用于后续创建子目录）
     run_name = f"h{args.hidden_size}_l{args.num_hidden_layers}_bs{args.batch_size}_lr{args.learning_rate}"
@@ -184,7 +184,7 @@ if __name__ == "__main__":
     dtype = torch.bfloat16 if args.dtype == "bfloat16" else torch.float16
     autocast_ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=dtype)
     
-    # ========== 4. 配置swanlab ==========
+    # ========== 4. 配置 swanlab ==========
     swanlab_run = None
     if args.use_swanlab and is_main_process():  # [DDP] 仅主进程上报；without_ddp 无 is_main_process()
         import swanlab
@@ -205,15 +205,15 @@ if __name__ == "__main__":
     # 创建模型
     if args.from_weight != 'none' and os.path.exists(args.from_weight):
         Logger(f'Loading model from {args.from_weight}')
-        model = SpongeBobForCausalLM.from_pretrained(args.from_weight)
+        model = LLMFromScratchForCausalLM.from_pretrained(args.from_weight)
     else:
         Logger(f'Creating new model: hidden_size={args.hidden_size}, num_layers={args.num_hidden_layers}')
-        model = SpongeBobForCausalLM(lm_config)
+        model = LLMFromScratchForCausalLM(lm_config)
     
     model = model.to(args.device)
     Logger(f'Model parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M')
     
-    # 加载 tokenizer（用于 benchmark 评测）
+    # 加载 tokenizer（用于 benchmark 测评）
     if args.eval_bench == 1:
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained('')
@@ -225,7 +225,7 @@ if __name__ == "__main__":
         model = torch.compile(model)
         Logger('torch.compile enabled')
     
-    # 数据集（加载预处理好的.bin文件）
+    # 数据集（加载预处理好的 bin 文件）
     Logger('Loading dataset...')
     train_ds = PretrainDataset(args.data_path, seq_len=args.max_seq_len)
     # [DDP] 多卡用 DistributedSampler 分片；without_ddp 无 train_sampler，后面用 indices
@@ -238,7 +238,7 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=0.1)
     Logger('Optimizer ready')
     
-    # ========== 6. 从ckp恢复状态 ==========
+    # ========== 6. 从 ckp 恢复状态 ==========
     start_epoch, start_step = 0, 0
     if ckp_data:
         Logger('Loading checkpoint...')
@@ -270,8 +270,8 @@ if __name__ == "__main__":
     Logger(f'World size: {world_size}, Steps per epoch: {steps_per_epoch}')
     Logger(f'Total training steps: {total_steps}, Warmup steps: {warmup_steps} (3%)')
     
-    # ========== 8.5. 初始评测 (step 0) ==========
-    # [DDP] 仅主进程评测；without_ddp 无 is_main_process()
+    # ========== 8.5. 初始测评 (step 0) ==========
+    # [DDP] 仅主进程测评；without_ddp 无 is_main_process()
     if args.eval_bench == 1 and tokenizer is not None and is_main_process() and start_epoch == 0 and start_step == 0:
         Logger('Running initial benchmark evaluation (step 0)...')
         model.eval()
@@ -292,13 +292,13 @@ if __name__ == "__main__":
         g.manual_seed(epoch)
         indices = torch.randperm(len(train_ds), generator=g).tolist()
         skip = start_step if (epoch == start_epoch and start_step > 0) else 0
-        # [DDP] 多卡用 train_sampler，单卡用 indices；without_ddp 仅 SkipBatchSampler(indices, ...)
+        # [DDP] 多卡用 train_sampler，单卡用 indices；without_ddp 从 SkipBatchSampler(indices, ...)
         batch_sampler = SkipBatchSampler(train_sampler or indices, args.batch_size, skip)
         Logger(f'Creating DataLoader for epoch {epoch+1}...')
         loader = DataLoader(train_ds, batch_sampler=batch_sampler, num_workers=args.num_workers, pin_memory=True)
         Logger(f'DataLoader ready, starting epoch {epoch+1}...')
         if skip > 0: 
-            Logger(f'Epoch [{epoch + 1}/{args.epochs}]: 跳过前{start_step}个step，从step {start_step + 1}开始')
+            Logger(f'Epoch [{epoch + 1}/{args.epochs}]: 跳过前 {start_step} 个 step，从 step {start_step + 1} 开始')
             train_epoch(epoch, loader, len(loader) + skip, start_step, swanlab_run, total_steps, warmup_steps, full_save_dir)
         else:
             train_epoch(epoch, loader, len(loader), 0, swanlab_run, total_steps, warmup_steps, full_save_dir)

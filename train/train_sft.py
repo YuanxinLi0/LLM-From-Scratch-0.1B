@@ -4,9 +4,9 @@ SFT 训练脚本：由 pretrain.py 复制后做少量修改得到，便于与预
 
 主要差异：
 1. 数据集：PretrainDataset(.bin) → SFTDataset(jsonl 对话数据，只算 assistant loss)
-2. Tokenizer：SFT 需提前加载（Dataset 需要），pretrain 仅评测时加载
+2. Tokenizer：SFT 需提前加载（dataset 需要），pretrain 仅评测时加载
 3. 模型加载：pretrain 用 from_pretrained，SFT 用 load_state_dict 加载 .pth
-4. 评测方式：pretrain 用 C3/XCOPA benchmark，SFT 用 mini_bench + DeepSeek Judge 生成式评测
+4. 测评方式：pretrain 用 C3/XCOPA benchmark，SFT 用 mini_bench + DeepSeek Judge 生成式评测
 5. 新增参数：tokenizer_path, judge_api_key, judge_model
 """
 import os
@@ -23,14 +23,14 @@ import json
 import time
 import warnings
 import torch
-import torch.distributed as dist  # 多进程/多 GPU 通信
+import torch.distributed as dist  # 多进程多 GPU 通信
 from contextlib import nullcontext
 from torch import optim, nn
 from torch.nn.parallel import DistributedDataParallel  # DDP：多卡同步梯度
 from torch.utils.data import DataLoader, DistributedSampler  # 每卡分片数据，不重复
 from transformers import AutoTokenizer  # [SFT] SFT 需一开始就加载 tokenizer（给 SFTDataset 用），pretrain 仅在 eval_bench=1 时加载
-from model.config import SpongeBobConfig
-from model.model_spongebob_pro import SpongeBobForCausalLM
+from model.config import LLMFromScratchConfig
+from model.model_llm_from_scratch import LLMFromScratchForCausalLM
 from dataset.sft_dataset import SFTDataset  # [SFT] pretrain 用 PretrainDataset(.bin)，SFT 用 SFTDataset(jsonl + 只算 assistant loss)
 from utils import get_lr, Logger, is_main_process, init_distributed_mode, SkipBatchSampler
 
@@ -96,7 +96,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
             Logger(f'Saved checkpoint: {ckp_dir}')
             model.train()
 
-        # [SFT] mini_bench 评测：每到 eval_interval 用当前模型推理，异步 DeepSeek Judge
+        # [SFT] mini_bench 测评：每隔 eval_interval 用当前模型推理，异步 DeepSeek Judge
         # pretrain 用 run_benchmark (C3/XCOPA)，SFT 用 run_inference + run_judge_async (生成式评测)
         if args.enable_eval and getattr(args, "eval_interval", 0) > 0 and global_step % args.eval_interval == 0 and is_main_process():
             from benchmark.mini_bench.eval import run_inference, run_judge_async
@@ -118,7 +118,7 @@ def train_epoch(epoch, loader, iters, start_step=0, swanlab=None, total_steps=No
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="SpongeBob SFT Training")
+    parser = argparse.ArgumentParser(description="LLM-From-Scratch-0.1B SFT Training")
     # [SFT] 以下参数默认值与 pretrain.py 不同：save_dir, save_weight, epochs, data_path, from_weight, swanlab_project
     # [SFT] 新增参数：tokenizer_path, ollama_url, ollama_model
     parser.add_argument("--save_dir", type=str, default="../out_sft/exp_1", help="模型保存目录")
@@ -139,13 +139,13 @@ if __name__ == "__main__":
     parser.add_argument("--data_path", type=str, default="", help="SFT 数据 jsonl 路径")
     parser.add_argument("--tokenizer_path", type=str, default="../tokenizer_15k", help="tokenizer 路径")  # [SFT] 新增：SFTDataset 需要 tokenizer
     parser.add_argument('--from_weight', default='', type=str, help="基于哪个权重训练，为 none 则从头开始")
-    parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
+    parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测续训（0=否，1=是）")
     parser.add_argument("--use_swanlab", type=int, default=1, choices=[0, 1], help="是否使用 swanlab（0=否，1=是）")
-    parser.add_argument("--swanlab_project", type=str, default="SpongeBob-SFT", help="swanlab 项目名")
+    parser.add_argument("--swanlab_project", type=str, default="LLM-From-Scratch-0.1B-SFT", help="swanlab 项目名")
     parser.add_argument("--use_compile", default=1, type=int, choices=[0, 1], help="是否使用 torch.compile 加速（0=否，1=是）")
-    # [SFT] 新增：mini_bench 评测参数（使用 DeepSeek API）
+    # [SFT] 新增：mini_bench 测评参数（使用 DeepSeek API）
     parser.add_argument("--enable_eval", type=int, default=0, choices=[0, 1], help="是否启用评估（0=关闭，1=开启）")
-    parser.add_argument("--eval_interval", type=int, default=1000, help="每隔多少 step 跑 mini_bench（0=关闭），用当前模型推理+DeepSeek Judge 打分")
+    parser.add_argument("--eval_interval", type=int, default=1000, help="每隔多少 step 跑 mini_bench（0=关闭），用当前模型推理 DeepSeek Judge 打分")
     parser.add_argument("--judge_api_key", type=str, default='', help="Judge API Key（可直接传入或从环境变量 DEEPSEEK_API_KEY 读取）")
     parser.add_argument("--judge_model", type=str, default="deepseek-chat", help="Judge 模型名")
     args = parser.parse_args()
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     if dist.is_initialized(): args.device = f"cuda:{local_rank}"
 
     # ========== 2. 配置目录、模型参数、检查 ckp ==========
-    lm_config = SpongeBobConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers)
+    lm_config = LLMFromScratchConfig(hidden_size=args.hidden_size, num_hidden_layers=args.num_hidden_layers)
 
     # 与 pretrain 一致：用 run_name 做子目录
     run_name = f"h{args.hidden_size}_l{args.num_hidden_layers}_bs{args.batch_size}_lr{args.learning_rate}"
@@ -202,11 +202,11 @@ if __name__ == "__main__":
     # [SFT] 用 load_state_dict 加载 .pth 权重文件，pretrain 用 from_pretrained 加载模型目录
     if args.from_weight != 'none' and os.path.exists(args.from_weight):
         Logger(f'Loading model from {args.from_weight}')
-        model = SpongeBobForCausalLM(lm_config)
+        model = LLMFromScratchForCausalLM(lm_config)
         model.load_state_dict(torch.load(args.from_weight, map_location='cpu'), strict=False)
     else:
         Logger(f'Creating new model: hidden_size={args.hidden_size}, num_layers={args.num_hidden_layers}')
-        model = SpongeBobForCausalLM(lm_config)
+        model = LLMFromScratchForCausalLM(lm_config)
 
     model = model.to(args.device)
     Logger(f'Model parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M')
@@ -254,8 +254,8 @@ if __name__ == "__main__":
     Logger(f'World size: {world_size}, Steps per epoch: {steps_per_epoch}')
     Logger(f'Total training steps: {total_steps}, Warmup steps: {warmup_steps} (3%)')
 
-    # ========== 8.5. [SFT] 初始评测 (step 0) ==========
-    # 仅主进程评测，且仅在从头训练时（start_epoch=0, start_step=0）执行
+    # ========== 8.5. [SFT] 初始测评 (step 0) ==========
+    # 仅主进程测评，且仅当从头训练时（start_epoch=0, start_step=0）执行
     if args.enable_eval and getattr(args, "eval_interval", 0) > 0 and is_main_process() and start_epoch == 0 and start_step == 0:
         Logger('Running initial mini_bench evaluation (step 0)...')
         from benchmark.mini_bench.eval import run_inference, run_judge_async
@@ -271,7 +271,7 @@ if __name__ == "__main__":
                        output_file=valid_file,
                        swanlab_log_fn=swanlab_run.log if swanlab_run else None,
                        global_step=0)
-        Logger('[eval] step=0 初始评测完成，Judge 后台运行中...')
+        Logger('[eval] step=0 初始测评完成，Judge 后台运行中...')
 
     # ========== 9. 开始训练 ==========
     Logger(f'Starting training: {args.epochs} epochs, batch_size={args.batch_size}')
@@ -284,7 +284,7 @@ if __name__ == "__main__":
         loader = DataLoader(train_ds, batch_sampler=batch_sampler, num_workers=args.num_workers, pin_memory=True)
         Logger(f'DataLoader ready, starting epoch {epoch+1}...')
         if skip > 0:
-            Logger(f'Epoch [{epoch + 1}/{args.epochs}]: 跳过前{start_step}个step，从step {start_step + 1}开始')
+            Logger(f'Epoch [{epoch + 1}/{args.epochs}]: 跳过前 {start_step} 个 step，从 step {start_step + 1} 开始')
             train_epoch(epoch, loader, len(loader) + skip, start_step, swanlab_run, total_steps, warmup_steps, full_save_dir)
         else:
             train_epoch(epoch, loader, len(loader), 0, swanlab_run, total_steps, warmup_steps, full_save_dir)

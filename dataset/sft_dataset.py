@@ -1,5 +1,5 @@
 """
-SpongeBob SFT 数据集
+LLM-From-Scratch-0.1B SFT 数据集
 支持多轮对话，只计算 assistant 部分的 loss
 """
 import json
@@ -14,9 +14,12 @@ class SFTDataset(Dataset):
     
     数据格式：{"conversations": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
     
-    对话格式：<|im_start|><|user|>content<|im_end|><|assistant|>content<|im_end|>...
+    对话格式：<|im_start|>user
+content<|im_end|>
+<|im_start|>assistant
+content<|im_end|>...
     
-    Labels：只计算 assistant 部分的 loss（包括 <|assistant|> token、content 和 <|im_end|>）
+    Labels：只计算 assistant 部分的 loss（包括 <|im_start|>assistant token、content 和 <|im_end|>）
     """
     
     def __init__(self, jsonl_path, tokenizer, max_length=512):
@@ -37,9 +40,9 @@ class SFTDataset(Dataset):
         # 特殊 token IDs
         self.im_start_id = 1  # <|im_start|>
         self.im_end_id = 2    # <|im_end|>
-        self.user_id = 8      # <|user|>
-        self.assistant_id = 9 # <|assistant|>
-        self.pad_id = tokenizer.pad_token_id or 0  # <|endoftext|>
+        self.user_id = 8      # user
+        self.assistant_id = 9 # assistant
+        self.pad_id = tokenizer.pad_token_id or 0  # padding
         
     def __len__(self):
         return len(self.data)
@@ -51,7 +54,7 @@ class SFTDataset(Dataset):
         格式示例：
             input_ids: [1, 8, tok1, tok2, 2, 9, tok3, tok4, 2, 8, tok5, 2, 9, tok6, 2]
             labels:    [-100, -100, -100, -100, -100, 9, tok3, tok4, 2, -100, -100, -100, 9, tok6, 2]
-                        ↑开始  ↑user部分全部mask           ↑assistant部分计算loss  ↑user mask    ↑assistant计算loss
+                        ↑开始   ↑user 部分全部 mask           ↑assistant 部分计算 loss  ↑user mask    ↑assistant 计算 loss
         """
         conversations = self.data[idx]['conversations']
         
@@ -63,7 +66,8 @@ class SFTDataset(Dataset):
             content = conv['content']
             
             if role == 'user':
-                # User 部分：<|user|>content<|im_end|>
+                # User 部分：user
+content<|im_end|>
                 # 全部 mask 掉（不计算 loss）
                 user_tokens = [self.user_id] + \
                               self.tokenizer.encode(content, add_special_tokens=False) + \
@@ -72,8 +76,9 @@ class SFTDataset(Dataset):
                 labels.extend([-100] * len(user_tokens))
                 
             elif role == 'assistant':
-                # Assistant 部分：<|assistant|>content<|im_end|>
-                # 全部计算 loss（包括 <|assistant|> token）
+                # Assistant 部分：assistant
+content<|im_end|>
+                # 全部计算 loss（包括 assistant token）
                 assistant_tokens = [self.assistant_id] + \
                                    self.tokenizer.encode(content, add_special_tokens=False) + \
                                    [self.im_end_id]

@@ -1,5 +1,5 @@
 """
-SpongeBob 预训练数据集
+LLM-From-Scratch-0.1B 预训练数据集
 加载预处理好的二进制数据
 """
 import os
@@ -11,14 +11,14 @@ from torch.utils.data import Dataset
 
 class PretrainDataset(Dataset):
     """
-    预训练数据集：加载.bin文件
+    预训练数据集：加载 .bin 文件
     数据格式：(num_chunks, seq_len) 的 uint16 数组
     """
     def __init__(self, data_path, seq_len=512):
         """
         Args:
-            data_path: .bin文件路径
-            seq_len: 序列长度（用于验证，实际从.meta读取）
+            data_path: .bin 文件路径
+            seq_len: 序列长度（用于验证，实际从 meta 读取）
         """
         if not data_path.endswith('.bin'):
             data_path = data_path + '.bin'
@@ -48,7 +48,3 @@ class PretrainDataset(Dataset):
         chunk = torch.from_numpy(self.data[idx].astype(np.int64))
         # 直接返回整个 chunk 作为 input_ids 和 labels
         return chunk.clone(), chunk.clone()
-
-
-
-

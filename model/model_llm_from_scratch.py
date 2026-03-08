@@ -7,7 +7,7 @@ from transformers.activations import ACT2FN
 from typing import Optional, Tuple, List, Union
 from transformers import PreTrainedModel, GenerationMixin, PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from .config import SpongeBobConfig
+from .config import LLMFromScratchConfig
 
 
 class RMSNorm(torch.nn.Module):
@@ -100,7 +100,7 @@ class Attention(nn.Module):
     """
     多头注意力机制（支持 Grouped Query Attention 和 Flash Attention）
     """
-    def __init__(self, args: SpongeBobConfig):
+    def __init__(self, args: LLMFromScratchConfig):
         super().__init__()
         # GQA: 允许 KV 头数少于 Query 头数
         self.num_key_value_heads = args.num_attention_heads if args.num_key_value_heads is None else args.num_key_value_heads
@@ -231,7 +231,7 @@ class FeedForward(nn.Module):
     前馈神经网络（SwiGLU 激活函数）
     结构: Gate(x) * Up(x) -> Down
     """
-    def __init__(self, config: SpongeBobConfig):
+    def __init__(self, config: LLMFromScratchConfig):
         super().__init__()
         # 计算中间层大小：默认为 hidden_size * 8/3，向上取整到 64 的倍数
         intermediate_size = config.intermediate_size
@@ -250,12 +250,12 @@ class FeedForward(nn.Module):
         return self.dropout(self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x)))
 
 
-class SpongeBobBlock(nn.Module):
+class LLMFromScratchBlock(nn.Module):
     """
     Transformer 块：Self-Attention + FeedForward
     采用 Pre-Norm 结构（Norm before attention/mlp）
     """
-    def __init__(self, layer_id: int, config: SpongeBobConfig):
+    def __init__(self, layer_id: int, config: LLMFromScratchConfig):
         super().__init__()
         self.num_attention_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
@@ -288,11 +288,11 @@ class SpongeBobBlock(nn.Module):
         return hidden_states, present_key_value
 
 
-class SpongeBobModel(nn.Module):
+class LLMFromScratchModel(nn.Module):
     """
-    SpongeBob 模型主体（Decoder-only Transformer）
+    LLM-From-Scratch-0.1B 模型主体（Decoder-only Transformer）
     """
-    def __init__(self, config: SpongeBobConfig):
+    def __init__(self, config: LLMFromScratchConfig):
         super().__init__()
         self.config = config
         self.vocab_size, self.num_hidden_layers = config.vocab_size, config.num_hidden_layers
@@ -302,7 +302,7 @@ class SpongeBobModel(nn.Module):
         self.dropout = nn.Dropout(config.dropout)
         
         # Transformer Blocks
-        self.layers = nn.ModuleList([SpongeBobBlock(l, config) for l in range(self.num_hidden_layers)])
+        self.layers = nn.ModuleList([LLMFromScratchBlock(l, config) for l in range(self.num_hidden_layers)])
         
         # 最终的 LayerNorm
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
@@ -371,19 +371,19 @@ class SpongeBobModel(nn.Module):
         return hidden_states, presents
 
 
-class SpongeBobForCausalLM(PreTrainedModel, GenerationMixin):
+class LLMFromScratchForCausalLM(PreTrainedModel, GenerationMixin):
     """
-    SpongeBob 因果语言模型（用于文本生成）
-    在 SpongeBobModel 基础上添加 Language Modeling Head
+    LLM-From-Scratch-0.1B 因果语言模型（用于文本生成）
+    在 LLMFromScratchModel 基础上添加 Language Modeling Head
     """
-    config_class = SpongeBobConfig
+    config_class = LLMFromScratchConfig
 
-    def __init__(self, config: SpongeBobConfig = None):
-        self.config = config or SpongeBobConfig()
+    def __init__(self, config: LLMFromScratchConfig = None):
+        self.config = config or LLMFromScratchConfig()
         super().__init__(self.config)
         
         # Transformer 主体
-        self.model = SpongeBobModel(self.config)
+        self.model = LLMFromScratchModel(self.config)
         
         # Language Modeling Head（与 embed_tokens 权重共享）
         self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)

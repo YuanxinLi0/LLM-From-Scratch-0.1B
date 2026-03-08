@@ -1,18 +1,18 @@
-from .config import SpongeBobConfig
-from .model_spongebob_pro import (
-    SpongeBobModel,
-    SpongeBobForCausalLM,
-    SpongeBobBlock,
+from .config import LLMFromScratchConfig
+from .model_llm_from_scratch import (
+    LLMFromScratchModel,
+    LLMFromScratchForCausalLM,
+    LLMFromScratchBlock,
     Attention,
     FeedForward,
     RMSNorm
 )
 
 __all__ = [
-    "SpongeBobConfig",
-    "SpongeBobModel",
-    "SpongeBobForCausalLM",
-    "SpongeBobBlock",
+    "LLMFromScratchConfig",
+    "LLMFromScratchModel",
+    "LLMFromScratchForCausalLM",
+    "LLMFromScratchBlock",
     "Attention",
     "FeedForward",
     "RMSNorm"
