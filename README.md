@@ -10,6 +10,10 @@
 - **预训练 (Pretrain)**：在大规模中文语料上进行自回归语言模型预训练
 - **监督微调 (SFT)**：使用对话数据进行指令微调
 - **评测 (Eval)**：交互式对话评测与 Benchmark 测试
+  
+---
+
+<img width="1910" height="922" alt="image" src="https://github.com/user-attachments/assets/ccaa9df4-36a3-4d38-aee1-ee63f0493e51" />
 
 ---
 
