@@ -1,4 +1,4 @@
-# LLM-From-Scratch-0.1B
+﻿# LLM-From-Scratch-0.1B
 
 从零开始训练一个 0.1B 参数的中文大语言模型。
 
@@ -10,6 +10,21 @@
 - **预训练 (Pretrain)**：在大规模中文语料上进行自回归语言模型预训练
 - **监督微调 (SFT)**：使用对话数据进行指令微调
 - **评测 (Eval)**：交互式对话评测与 Benchmark 测试
+
+---
+
+## 模型权重
+
+本仓库提供了训练好的模型权重，可通过 Git LFS 下载：
+
+| 模型 | 参数量 | 文件路径 | 说明 |
+|------|--------|----------|------|
+| Pretrain | 0.1B | `checkpoints/pretrain_768.pth` | 预训练模型 |
+| SFT | 0.1B | `checkpoints/sft_768.pth` | 监督微调模型 |
+
+> 注：模型权重文件约 188MB，使用 Git LFS 存储。
+
+---
 
 ## 模型架构
 
@@ -32,6 +47,8 @@
 - **Flash Attention**：加速训练推理
 - **权重绑定**：Embedding 与 LM Head 共享权重
 
+---
+
 ## 项目结构
 
 ```
@@ -50,10 +67,16 @@ LLM-From-Scratch-0.1B/
 ├── benchmark/
 │   ├── pretrain/                    # 预训练评测
 │   └── mini_bench/                  # SFT 评测
+│       ├── 100miniSponge.jsonl      # Mini 测试集 (100条)
+│       └── eval.py                  # 评测脚本
 ├── tokenizer_15k/                   # 训练好的 Tokenizer
 ├── checkpoints/                     # 模型权重
+│   ├── pretrain_768.pth             # 预训练权重
+│   └── sft_768.pth                  # SFT 权重
 └── eval.py                          # 交互式对话脚本
 ```
+
+---
 
 ## 快速开始
 
@@ -62,6 +85,45 @@ LLM-From-Scratch-0.1B/
 ```bash
 pip install torch transformers datasets swanlab
 ```
+
+### 使用预训练模型
+
+```python
+from transformers import AutoTokenizer
+from model.config import LLMFromScratchConfig
+from model.model_llm_from_scratch import LLMFromScratchForCausalLM
+import torch
+
+# 加载 Tokenizer
+tokenizer = AutoTokenizer.from_pretrained("tokenizer_15k")
+
+# 加载模型
+config = LLMFromScratchConfig()
+model = LLMFromScratchForCausalLM(config)
+model.load_state_dict(torch.load("checkpoints/sft_768.pth", map_location="cpu"))
+model.eval()
+
+# 推理
+input_text = "你好，请自我介绍一下。"
+inputs = tokenizer(input_text, return_tensors="pt")
+with torch.no_grad():
+    outputs = model.generate(**inputs, max_new_tokens=100)
+print(tokenizer.decode(outputs[0]))
+```
+
+### 交互式对话
+
+```bash
+python eval.py \
+    --model_path checkpoints/sft_768.pth \
+    --tokenizer_path tokenizer_15k \
+    --model_type sft \
+    --multi_turn
+```
+
+---
+
+## 训练指南
 
 ### 预训练
 
@@ -89,15 +151,7 @@ python train_sft.py \
     --epochs 2
 ```
 
-### 交互对话
-
-```bash
-python eval.py \
-    --model_path checkpoints/sft_768.pth \
-    --tokenizer_path tokenizer_15k \
-    --model_type sft \
-    --multi_turn
-```
+---
 
 ## 训练特性
 
@@ -108,11 +162,17 @@ python eval.py \
 - **断点续训**：自动检测并恢复训练状态
 - **SwanLab 集成**：训练过程可视化
 
+---
+
 ## 评测 Benchmark
 
-- **C3**：中文阅读理解
-- **XCOPA-ZH**：中文常识推理
-- **Mini Bench**：生成式对话评测
+| Benchmark | 说明 |
+|-----------|------|
+| **C3** | 中文阅读理解 |
+| **XCOPA-ZH** | 中文常识推理 |
+| **Mini Bench** | 生成式对话评测 (100条测试用例) |
+
+---
 
 ## 致谢
 

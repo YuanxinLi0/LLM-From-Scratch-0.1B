@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -33,19 +33,12 @@ env/
 *.swo
 *~
 
-# Model checkpoints (too large for git)
-checkpoints/
-*.pth
-*.bin
-*.pt
-
 # Training outputs
 out_*/
 pretrain_out/
 
-# Data files (usually large)
+# Data files
 data/
-*.jsonl
 *.meta
 
 # Logs
