@@ -10,7 +10,7 @@
 - **预训练 (Pretrain)**：在大规模中文语料上进行自回归语言模型预训练
 - **监督微调 (SFT)**：使用对话数据进行指令微调
 - **评测 (Eval)**：交互式对话评测与 Benchmark 测试
-  
+
 ---
 
 <img width="1910" height="922" alt="image" src="https://github.com/user-attachments/assets/ccaa9df4-36a3-4d38-aee1-ee63f0493e51" />
@@ -77,7 +77,8 @@ LLM-From-Scratch-0.1B/
 ├── checkpoints/                     # 模型权重
 │   ├── pretrain_768.pth             # 预训练权重
 │   └── sft_768.pth                  # SFT 权重
-└── eval.py                          # 交互式对话脚本
+├── eval.py                          # 交互式对话脚本
+└── test_model.py                    # 模型测试脚本
 ```
 
 ---
@@ -89,6 +90,23 @@ LLM-From-Scratch-0.1B/
 ```bash
 pip install torch transformers datasets swanlab
 ```
+
+### 快速测试模型
+
+运行交互式测试脚本：
+
+```bash
+python test_model.py
+```
+
+**交互命令：**
+
+| 命令 | 说明 |
+|------|------|
+| `quit` / `exit` | 退出程序 |
+| `clear` | 清空对话历史 |
+| `single` | 切换为单轮模式 |
+| `multi` | 切换为多轮模式（默认） |
 
 ### 使用预训练模型
 
