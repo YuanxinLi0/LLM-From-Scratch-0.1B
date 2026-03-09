@@ -179,6 +179,9 @@ python train_sft.py \
 <p align="center">
 <img width="594" height="990" alt="image" src="https://github.com/user-attachments/assets/ae1e3c0a-cf26-43cd-ada4-41f796a0c772" />
 </p>
+
+---
+
 本项目采用 **MIT License**，你可以自由地将其用于学习、修改或二次开发。
 
 
